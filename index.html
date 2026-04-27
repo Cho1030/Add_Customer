@@ -81,7 +81,7 @@ function saveState(){
 }
 function restoreState(state){
     document.querySelectorAll('input').forEach(el => {
-        if(el.id && state[el.id] !== undefined) el.value = state[el.id];
+        if(el.id) el.value = state[el.id] !== undefined ? state[el.id] : '';
     });
     // 보험사 복원
     Object.keys(state).forEach(k => {
@@ -118,7 +118,7 @@ document.addEventListener('keydown', function(e){
 // 새 창에서 실행
 if(window.self === window.top && !sessionStorage.getItem('launched')){
     sessionStorage.setItem('launched','1');
-    const w = window.open(location.href,'_blank','width=1000,height=800');
+    const w = window.open(location.href,'_blank','width=580,height=800');
     if(w) window.close();
 }
 
