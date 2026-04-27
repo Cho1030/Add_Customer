@@ -1,0 +1,21 @@
+{
+  "name": "고객 정보 입력",
+  "short_name": "고객입력",
+  "description": "보험 고객 정보를 탭별로 관리하고 클립보드로 빠르게 복사하는 도구",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f4f4",
+  "theme_color": "#4CAF50",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
