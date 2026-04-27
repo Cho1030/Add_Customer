@@ -65,6 +65,63 @@ let tabCount = 0;
 let personCount = {};
 let selectedInsurance = {};
 
+// Undo 히스토리
+const undoStack = [];
+function saveState(){
+    const state = {};
+    document.querySelectorAll('input').forEach(el => {
+        if(el.id) state[el.id] = el.value;
+    });
+    // 보험사 선택 상태
+    Object.keys(selectedInsurance).forEach(k => {
+        state['__ins__'+k] = selectedInsurance[k];
+    });
+    undoStack.push(state);
+    if(undoStack.length > 50) undoStack.shift();
+}
+function restoreState(state){
+    document.querySelectorAll('input').forEach(el => {
+        if(el.id && state[el.id] !== undefined) el.value = state[el.id];
+    });
+    // 보험사 복원
+    Object.keys(state).forEach(k => {
+        if(k.startsWith('__ins__')){
+            const key = k.replace('__ins__','');
+            selectedInsurance[key] = state[k];
+            const [tab,i] = key.split('_');
+            const g = document.getElementById('insuranceGroup'+tab+'_'+i);
+            if(g){
+                g.querySelectorAll('button').forEach(b => {
+                    b.classList.toggle('active', b.innerText === state[k]);
+                });
+            }
+        }
+    });
+    // 타이틀 갱신
+    for(let t=1;t<=tabCount;t++){
+        for(let x=1;x<=personCount[t];x++){
+            const el = document.getElementById('name'+t+'_'+x);
+            if(el) updateTitle(t,x);
+        }
+    }
+}
+document.addEventListener('keydown', function(e){
+    if((e.ctrlKey || e.metaKey) && e.key === 'z'){
+        e.preventDefault();
+        if(undoStack.length > 1){
+            undoStack.pop(); // 현재 상태 제거
+            restoreState(undoStack[undoStack.length-1]);
+        }
+    }
+});
+
+// 새 창에서 실행
+if(window.self === window.top && !sessionStorage.getItem('launched')){
+    sessionStorage.setItem('launched','1');
+    const w = window.open(location.href,'_blank','width=1000,height=800');
+    if(w) window.close();
+}
+
 function addTab(){
     tabCount++;
     personCount[tabCount] = 0;
@@ -404,10 +461,19 @@ function fillPerson(tab, i, data){
         if(el1) el1.value = split.addr1;
         if(el2) el2.value = split.addr2;
     }
+    saveState();
 }
+
+// input 변경 시 상태 저장 (debounce)
+let saveTimer = null;
+document.addEventListener('input', function(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveState, 300);
+});
 
 // 최초 탭 생성
 addTab();
+saveState(); // 초기 상태 저장
 </script>
 
 </body>
