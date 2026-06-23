@@ -1,480 +1,137 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>고객 정보 입력</title>
-<link rel="icon" href="favicon.ico">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#4CAF50">
-<style>
-body { font-family: Arial; background: #f4f4f4; padding: 20px; }
-
-.tabs { margin-bottom:10px; }
-.tabs button {
-    padding: 8px 12px;
-    margin-right: 5px;
-    border: none;
-    border-radius: 5px;
-    background: #ccc;
-    cursor: pointer;
-}
-.tabs button.active { background:#4CAF50; color:white; }
-
-.add-tab { background:#2196F3; color:white; margin-bottom:10px; }
-
-.container { display:none; }
-.container.active { display:block; }
-
-.person { background: white; padding: 15px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 0 8px rgba(0,0,0,0.1); }
-.row { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
-
-input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
-
-.phone input { width: 60px; text-align: center; }
-.phone input:nth-child(2), .phone input:nth-child(3) { width: 80px; }
-
-button { padding: 6px 8px; border: none; border-radius: 5px; background: #4CAF50; color: white; cursor: pointer; font-size: 12px; }
-
-.phone-buttons button { background: #2196F3; }
-.sync-btn { background: #ff5722; }
-.insurance-buttons button { background: #888; }
-.insurance-buttons button.active { background: #ff9800; }
-
-.add-btn { background:#673AB7; font-size:14px; padding:10px; width:100%; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>알바 가용 일정 보드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">PART-TIME AVAILABILITY BOARD</p>
+        <h1>알바 지원자 가용 일정 관리</h1>
+        <p class="hero-copy">
+          지원자 목록, 근무 가능 날짜, 날짜별 최종 선택 상태를 한 화면에서 확인하고 바로 저장할 수 있습니다.
+        </p>
+      </div>
+      <div class="hero-actions">
+        <button id="toggleFormButton" class="ghost-button" type="button" aria-expanded="true">
+          등록란 접기
+        </button>
+        <button id="resetDataButton" class="ghost-button" type="button">초기 데이터로 되돌리기</button>
+      </div>
+    </header>
 
-<!-- 🔝 탭 -->
-<div class="tabs" id="tabs"></div>
-<button class="add-tab" onclick="addTab()">+ 탭 추가</button>
+    <main class="layout">
+      <section class="panel panel-form" id="formPanel">
+        <div class="panel-header">
+          <div>
+            <h2>지원자 등록</h2>
+            <p>새 지원자를 추가하거나 기존 지원자 정보를 수정할 수 있습니다.</p>
+          </div>
+        </div>
 
-<hr>
+        <div id="formPanelBody" class="panel-body">
+          <form id="applicantForm" class="applicant-form">
+            <input type="hidden" id="applicantId">
 
-<!-- 🔥 컨테이너 -->
-<div id="allContainers"></div>
+            <label>
+              이름
+              <input id="name" name="name" type="text" required>
+            </label>
 
-<!-- 🔻 고객 추가 -->
-<button class="add-btn" onclick="addPerson()">+ 고객 추가</button>
+            <label>
+              연락처
+              <input id="phone" name="phone" type="text" placeholder="010-0000-0000" required>
+            </label>
 
-<script>
-let currentTab = 0;
-let tabCount = 0;
-let personCount = {};
-let selectedInsurance = {};
+            <div class="grid-two">
+              <label>
+                나이
+                <input id="age" name="age" type="number" min="0" max="99" required>
+              </label>
 
-// Undo 히스토리
-const undoStack = [];
-function saveState(){
-    const state = {};
-    document.querySelectorAll('input').forEach(el => {
-        if(el.id) state[el.id] = el.value;
-    });
-    // 보험사 선택 상태
-    Object.keys(selectedInsurance).forEach(k => {
-        state['__ins__'+k] = selectedInsurance[k];
-    });
-    undoStack.push(state);
-    if(undoStack.length > 50) undoStack.shift();
-}
-function restoreState(state){
-    document.querySelectorAll('input').forEach(el => {
-        if(el.id) el.value = state[el.id] !== undefined ? state[el.id] : '';
-    });
-    // 보험사 복원
-    Object.keys(state).forEach(k => {
-        if(k.startsWith('__ins__')){
-            const key = k.replace('__ins__','');
-            selectedInsurance[key] = state[k];
-            const [tab,i] = key.split('_');
-            const g = document.getElementById('insuranceGroup'+tab+'_'+i);
-            if(g){
-                g.querySelectorAll('button').forEach(b => {
-                    b.classList.toggle('active', b.innerText === state[k]);
-                });
-            }
-        }
-    });
-    // 타이틀 갱신
-    for(let t=1;t<=tabCount;t++){
-        for(let x=1;x<=personCount[t];x++){
-            const el = document.getElementById('name'+t+'_'+x);
-            if(el) updateTitle(t,x);
-        }
-    }
-}
-document.addEventListener('keydown', function(e){
-    if((e.ctrlKey || e.metaKey) && e.key === 'z'){
-        e.preventDefault();
-        if(undoStack.length > 1){
-            undoStack.pop(); // 현재 상태 제거
-            restoreState(undoStack[undoStack.length-1]);
-        }
-    }
-});
+              <label>
+                성별
+                <select id="gender" name="gender" required>
+                  <option value="여성">여성</option>
+                  <option value="남성">남성</option>
+                </select>
+              </label>
+            </div>
 
-// 새 창에서 실행
-if(window.self === window.top && !sessionStorage.getItem('launched')){
-    sessionStorage.setItem('launched','1');
-    const w = window.open(location.href,'_blank','width=580,height=800');
-    if(w) window.close();
-}
+            <label>
+              거주지역
+              <input id="region" name="region" type="text" required>
+            </label>
 
-function addTab(){
-    tabCount++;
-    personCount[tabCount] = 0;
+            <label>
+              희망근무 메모
+              <textarea id="notes" name="notes" rows="4" placeholder="예: 6월 25일부터 가능, 매주 월화수 가능"></textarea>
+            </label>
 
-    // 탭 버튼
-    const btn = document.createElement("button");
-    btn.innerText = tabCount + "번 탭";
-    btn.id = "tabBtn"+tabCount;
-    const tabNum = tabCount;
-    btn.onclick = ()=>switchTab(tabNum);
-    document.getElementById("tabs").appendChild(btn);
+            <label>
+              추가할 근무 가능 날짜
+              <input id="dateInput" name="dateInput" type="date">
+            </label>
 
-    // 컨테이너
-    const div = document.createElement("div");
-    div.id = "container"+tabCount;
-    div.className = "container";
-    document.getElementById("allContainers").appendChild(div);
+            <div class="inline-actions">
+              <button id="addDateButton" class="secondary-button" type="button">날짜 추가</button>
+              <div id="draftDates" class="draft-dates"></div>
+            </div>
 
-    switchTab(tabCount);
+            <div class="form-actions">
+              <button class="primary-button" type="submit">저장하기</button>
+              <button id="cancelEditButton" class="ghost-button hidden" type="button">수정 취소</button>
+            </div>
+          </form>
+        </div>
+      </section>
 
-    // 초기 3명
-    for(let i=0;i<3;i++) addPerson();
-}
+      <section class="panel panel-calendar">
+        <div class="panel-header">
+          <div>
+            <h2>달력 보기</h2>
+            <p>날짜를 누르면 가능한 인원을 보고, 여러 명을 최종 선택할 수 있습니다.</p>
+          </div>
+          <div class="calendar-toolbar">
+            <button id="prevMonthButton" class="icon-button" type="button" aria-label="이전 달">&lt;</button>
+            <h3 id="calendarTitle"></h3>
+            <button id="nextMonthButton" class="icon-button" type="button" aria-label="다음 달">&gt;</button>
+          </div>
+        </div>
 
-function switchTab(n){
-    currentTab = n;
+        <div class="filter-bar">
+          <label for="applicantFilter">표시 대상</label>
+          <select id="applicantFilter"></select>
+        </div>
 
-    // 탭 버튼 active 처리
-    document.querySelectorAll("#tabs button")
-        .forEach(b => b.classList.remove("active"));
-    document.getElementById("tabBtn"+n).classList.add("active");
+        <div id="calendar" class="calendar"></div>
 
-    // 컨테이너 active 처리 (tabCount 기준으로 순회)
-    for(let t = 1; t <= tabCount; t++){
-        const c = document.getElementById("container"+t);
-        if(c) c.classList.remove("active");
-    }
-    document.getElementById("container"+n).classList.add("active");
-}
+        <div class="date-panel">
+          <div>
+            <h3 id="selectedDateTitle">날짜를 선택해 주세요</h3>
+            <p id="selectedDateHint">선택한 날짜의 지원 상태가 이곳에 표시됩니다.</p>
+          </div>
+          <div id="selectedDateApplicants" class="selected-date-applicants"></div>
+        </div>
+      </section>
 
-function addPerson(){
-    if(!currentTab) return;
+      <section class="panel panel-list">
+        <div class="panel-header">
+          <h2>가용 가능 리스트</h2>
+          <p>지원자별 가능 날짜 수와 선택된 날짜 수를 함께 확인할 수 있습니다.</p>
+        </div>
+        <div id="applicantList" class="applicant-list"></div>
+      </section>
+    </main>
+  </div>
 
-    personCount[currentTab]++;
-    let i = personCount[currentTab];
-
-    document.getElementById("container"+currentTab)
-    .insertAdjacentHTML("beforeend", createPerson(currentTab, i));
-}
-
-function createPerson(tab,index){
-return `
-<div class="person">
-<h3 id="title${tab}_${index}">${index}번 고객</h3>
-
-<div class="row">
-<button onclick="copyInsurance(${tab},${index}, this)">복사</button>
-<div class="insurance-buttons" id="insuranceGroup${tab}_${index}">
-${["삼성","KB","메리츠","현대","DB","흥국","롯데","동양","라이나","농협"]
-.map(n => `<button onclick="selectInsurance(${tab},${index}, this, '${n}')">${n}</button>`).join("")}
-</div>
-</div>
-
-<div class="row">
-<button onclick="copyValue('ssn${tab}_${index}', this)">복사</button>
-<input id="ssn${tab}_${index}" placeholder="주민번호">
-</div>
-
-<div class="row">
-<button onclick="copyValue('name${tab}_${index}', this)">복사</button>
-<input id="name${tab}_${index}" placeholder="이름" oninput="updateTitle(${tab},${index})">
-</div>
-
-<div class="row phone">
-<div class="phone-buttons">
-<button onclick="copyPhoneFull(${tab},${index}, this)">전체</button>
-<button onclick="copyPhoneLast8(${tab},${index}, this)">뒤8</button>
-</div>
-<button class="sync-btn" onclick="syncPhone(${tab},${index}, this)">전체적용</button>
-
-<input id="p1_${tab}_${index}" maxlength="3" oninput="moveNext(this,'p2_${tab}_${index}')">
--
-<input id="p2_${tab}_${index}" maxlength="4" oninput="moveNext(this,'p3_${tab}_${index}')">
--
-<input id="p3_${tab}_${index}" maxlength="4">
-</div>
-
-<div class="row">
-<button onclick="copyValue('carrier${tab}_${index}', this)">복사</button>
-<button class="sync-btn" onclick="syncField('carrier', ${tab},${index}, this)">전체적용</button>
-<input id="carrier${tab}_${index}" placeholder="통신사">
-</div>
-
-<div class="row">
-<button onclick="copyValue('address1_${tab}_${index}', this)">복사</button>
-<button class="sync-btn" onclick="syncField('address1_', ${tab},${index}, this)">전체적용</button>
-<input id="address1_${tab}_${index}" placeholder="주소 1" style="width:320px">
-</div>
-
-<div class="row">
-<button onclick="copyValue('address2_${tab}_${index}', this)">복사</button>
-<button class="sync-btn" onclick="syncField('address2_', ${tab},${index}, this)">전체적용</button>
-<input id="address2_${tab}_${index}" placeholder="주소 2" style="width:320px">
-</div>
-
-<div class="row">
-<button onclick="copyValue('job${tab}_${index}', this)">복사</button>
-<button class="sync-btn" onclick="syncField('job', ${tab},${index}, this)">전체적용</button>
-<input id="job${tab}_${index}" placeholder="직업">
-</div>
-
-</div>
-`;
-}
-
-// ===== 기능 =====
-function updateTitle(tab,i){
-let name=document.getElementById(`name${tab}_${i}`).value.trim();
-document.getElementById(`title${tab}_${i}`).innerText=name||`${i}번 고객`;
-}
-
-function selectInsurance(tab,i,btn,name){
-let g=document.getElementById(`insuranceGroup${tab}_${i}`);
-g.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
-btn.classList.add("active");
-selectedInsurance[`${tab}_${i}`]=name;
-}
-
-function showCopied(btn){
-let t=btn.innerText;
-btn.innerText="완료";
-setTimeout(()=>btn.innerText=t,800);
-}
-
-function copyValue(id,btn){
-navigator.clipboard.writeText(document.getElementById(id).value);
-showCopied(btn);
-}
-
-function getPhone(tab,i){
-return (
-document.getElementById(`p1_${tab}_${i}`).value +
-document.getElementById(`p2_${tab}_${i}`).value +
-document.getElementById(`p3_${tab}_${i}`).value
-).replace(/\D/g,'');
-}
-
-function copyPhoneFull(tab,i,btn){
-navigator.clipboard.writeText(getPhone(tab,i));
-showCopied(btn);
-}
-
-function copyPhoneLast8(tab,i,btn){
-navigator.clipboard.writeText(getPhone(tab,i).slice(-8));
-showCopied(btn);
-}
-
-function copyInsurance(tab,i,btn){
-let name=document.getElementById(`name${tab}_${i}`).value||"";
-let ins=selectedInsurance[`${tab}_${i}`]||"";
-navigator.clipboard.writeText(`${name} 동의 ${ins}`);
-showCopied(btn);
-}
-
-function syncField(prefix,tab,i,btn){
-let val=document.getElementById(prefix+tab+"_"+i).value;
-for(let x=1;x<=personCount[tab];x++){
-let el=document.getElementById(prefix+tab+"_"+x);
-if(el) el.value=val;
-}
-showCopied(btn);
-}
-
-function syncPhone(tab,i,btn){
-let v1=document.getElementById(`p1_${tab}_${i}`).value;
-let v2=document.getElementById(`p2_${tab}_${i}`).value;
-let v3=document.getElementById(`p3_${tab}_${i}`).value;
-
-for(let x=1;x<=personCount[tab];x++){
-document.getElementById(`p1_${tab}_${x}`).value=v1;
-document.getElementById(`p2_${tab}_${x}`).value=v2;
-document.getElementById(`p3_${tab}_${x}`).value=v3;
-}
-showCopied(btn);
-}
-
-function moveNext(cur,nextId){
-cur.value=cur.value.replace(/\D/g,'');
-if(cur.value.length===cur.maxLength){
-document.getElementById(nextId).focus();
-}
-}
-
-document.addEventListener("paste", function(e){
-    const target = e.target;
-
-    // 전화번호 p1 input 붙여넣기 → 분할 로직
-    if(target.id && target.id.startsWith("p1_")){
-        let data = (e.clipboardData||window.clipboardData).getData("text").replace(/\D/g,'');
-        if(data.length >= 10){
-            e.preventDefault();
-            let parts = target.id.split("_");
-            let tab = parts[1], idx = parts[2];
-            document.getElementById(`p1_${tab}_${idx}`).value = data.slice(0,3);
-            document.getElementById(`p2_${tab}_${idx}`).value = data.slice(3,7);
-            document.getElementById(`p3_${tab}_${idx}`).value = data.slice(7,11);
-        }
-        return;
-    }
-
-    // 일반 input 안이면 기본 동작 유지
-    if(target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-
-    const text = (e.clipboardData||window.clipboardData).getData("text");
-    if(!text.trim() || !currentTab) return;
-
-    const parsed = parseForm(text);
-    if(!parsed || (!parsed.name && !parsed.ssn && !parsed.phone)) return;
-
-    e.preventDefault();
-
-    // 현재 탭에서 첫 번째 빈 고객칸 찾기
-    let targetIndex = -1;
-    for(let x = 1; x <= personCount[currentTab]; x++){
-        const nameEl = document.getElementById(`name${currentTab}_${x}`);
-        if(nameEl && nameEl.value.trim() === ""){
-            targetIndex = x;
-            break;
-        }
-    }
-    if(targetIndex === -1){
-        addPerson();
-        targetIndex = personCount[currentTab];
-    }
-
-    fillPerson(currentTab, targetIndex, parsed);
-
-    const titleEl = document.getElementById(`title${currentTab}_${targetIndex}`);
-    if(titleEl) titleEl.scrollIntoView({ behavior: "smooth", block: "center" });
-});
-
-function parseForm(text){
-    const result = { name:"", ssn:"", phone:"", carrier:"", address:"" };
-    const addressKeywords = ["시","군","구","읍","면","동","로","길","번지","아파트","빌라","오피스텔","호"];
-    const carriers = ["SKT","KT","LGU+","LG U+","LGT","알뜰","알뜰폰","SKT망","KT망","LG망","헬로","SK텔레콤"];
-
-    let lines = text.split(/\n/).map(l => l.trim()).filter(l => l);
-
-    // 한 줄짜리: 토큰 분리로 처리
-    if(lines.length === 1){
-        const raw = lines[0];
-        const ssnMatch = raw.match(/\d{6}-?\d{7}/);
-        const phoneMatch = raw.match(/0(10|11|16|17|18|19)[\s\-]?\d{3,4}[\s\-]?\d{4}/);
-        const carrierMatch = carriers.find(c => new RegExp(c,'i').test(raw));
-        const nameMatch = raw.match(/(?<!\S)([가-힣]{2,5})(?!\S)/);
-
-        if(ssnMatch) result.ssn = ssnMatch[0].replace(/\s/g,'');
-        if(phoneMatch) result.phone = phoneMatch[0].replace(/[\s\-]/g,'');
-        if(carrierMatch) result.carrier = carrierMatch;
-        if(nameMatch) result.name = nameMatch[1];
-
-        let remainder = raw;
-        if(ssnMatch) remainder = remainder.replace(ssnMatch[0], '|||');
-        if(phoneMatch) remainder = remainder.replace(phoneMatch[0], '|||');
-        if(carrierMatch) remainder = remainder.replace(new RegExp(carrierMatch,'i'), '|||');
-        if(nameMatch) remainder = remainder.replace(nameMatch[0], '|||');
-
-        const parts = remainder.split(/\|{3}/).map(p => p.trim()).filter(p => p.length > 3);
-        const addrPart = parts.find(p => addressKeywords.some(k => p.includes(k)) && p.length > 5);
-        if(addrPart) result.address = addrPart.trim();
-        return result;
-    }
-
-    // 여러 줄
-    for(let li = 0; li < lines.length; li++){
-        const line = lines[li];
-        if(!result.ssn && /^\d{6}-?\d{7}$/.test(line.replace(/\s/g,''))){ result.ssn = line.replace(/\s/g,''); continue; }
-        if(!result.phone && /^0(10|11|16|17|18|19)[\s\-]?\d{3,4}[\s\-]?\d{4}$/.test(line.replace(/\s/g,''))){ result.phone = line.replace(/[\s\-]/g,''); continue; }
-        if(!result.carrier && carriers.some(c => line.toUpperCase().includes(c.toUpperCase()))){ result.carrier = line.trim(); continue; }
-        if(!result.name && /^[가-힣]{2,5}$/.test(line.trim())){ result.name = line.trim(); continue; }
-        if(!result.address && addressKeywords.some(k => line.includes(k)) && line.length > 3){
-            // 다음 줄도 주소 관련이면 합치기
-            let addrLine = line.trim();
-            while(li + 1 < lines.length && addressKeywords.some(k => lines[li+1].includes(k)) && lines[li+1].length < 20){
-                li++;
-                addrLine += ' ' + lines[li].trim();
-            }
-            result.address = addrLine;
-            continue;
-        }
-    }
-    return result;
-}
-
-function splitAddress(addr){
-    const p1 = /\s+(\d+동\s+\d+호|\d+호|[A-Z]\d+호)$/;
-    const p2 = /\s+(\d+-\d+)$/;
-    let match = addr.match(p1);
-    if(match){
-        return { addr1: addr.slice(0, addr.length - match[0].length).trim(), addr2: match[1].trim() };
-    }
-    match = addr.match(p2);
-    if(match){
-        return { addr1: addr.slice(0, addr.length - match[0].length).trim(), addr2: match[1].trim() };
-    }
-    return { addr1: addr, addr2: "" };
-}
-
-function fillPerson(tab, i, data){
-    if(data.name){
-        const el = document.getElementById(`name${tab}_${i}`);
-        if(el){ el.value = data.name; updateTitle(tab, i); }
-    }
-    if(data.ssn){
-        const el = document.getElementById(`ssn${tab}_${i}`);
-        if(el) el.value = data.ssn;
-    }
-    if(data.phone){
-        const digits = data.phone.replace(/\D/g,'');
-        if(digits.length === 11){
-            const p1 = document.getElementById(`p1_${tab}_${i}`);
-            const p2 = document.getElementById(`p2_${tab}_${i}`);
-            const p3 = document.getElementById(`p3_${tab}_${i}`);
-            if(p1) p1.value = digits.slice(0,3);
-            if(p2) p2.value = digits.slice(3,7);
-            if(p3) p3.value = digits.slice(7,11);
-        }
-    }
-    if(data.carrier){
-        const el = document.getElementById(`carrier${tab}_${i}`);
-        if(el) el.value = data.carrier;
-    }
-    if(data.address){
-        const split = splitAddress(data.address);
-        const el1 = document.getElementById(`address1_${tab}_${i}`);
-        const el2 = document.getElementById(`address2_${tab}_${i}`);
-        if(el1) el1.value = split.addr1;
-        if(el2) el2.value = split.addr2;
-    }
-    saveState();
-}
-
-// input 변경 시 상태 저장 (debounce)
-let saveTimer = null;
-document.addEventListener('input', function(){
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveState, 300);
-});
-
-// 최초 탭 생성
-addTab();
-saveState(); // 초기 상태 저장
-</script>
-
+  <script src="app.js"></script>
 </body>
 </html>
